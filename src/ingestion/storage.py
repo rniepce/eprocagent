@@ -9,6 +9,18 @@ logger = logging.getLogger(__name__)
 class DocumentStorage:
     """Handles persisting documents and their chunks to PostgreSQL."""
 
+    async def document_exists(self, filename: str) -> bool:
+        """Return True if a document with this filename is already ingested."""
+        conn = await get_db_connection()
+        try:
+            row = await conn.fetchval(
+                "SELECT 1 FROM documentos WHERE filename = $1 LIMIT 1",
+                filename,
+            )
+            return row is not None
+        finally:
+            await release_db_connection(conn)
+
     async def save_document_and_chunks(
         self,
         filename: str,

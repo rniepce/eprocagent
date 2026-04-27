@@ -54,6 +54,26 @@ npm run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8080/docs
 
+## Ingestão em batch (carga inicial dos manuais)
+
+Para embedar todos os manuais da pasta `manuais/` de uma vez (em vez de enviar
+um por um pelo upload HTTP):
+
+```bash
+docker-compose up -d                # sobe Postgres+pgvector
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env                # preencha AZURE_API_KEY
+
+PYTHONPATH=. python -m src.ingestion.batch_ingest --root manuais --skip-existing
+```
+
+Flags úteis:
+- `--limit N` — processa só os N primeiros arquivos (smoke test).
+- `--no-classify` — pula a classificação por gpt-5.5; usa o nome da subpasta
+  como `secao`/tags (mais barato e rápido).
+- `--skip-existing` — pula filenames já presentes em `documentos` (idempotente).
+
 ## Como usar
 
 1. **Envie manuais** do eProc (PDF/DOCX) pelo botão de upload na sidebar

@@ -15,7 +15,7 @@ AZURE_API_KEY = os.getenv("AZURE_API_KEY")
 AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT", "https://assistente-web-resource.cognitiveservices.azure.com/")
 AZURE_API_VERSION = os.getenv("AZURE_API_VERSION", "2024-12-01-preview")
 AZURE_LLM_MODEL = os.getenv("AZURE_LLM_MODEL", "gpt-5.5")
-AZURE_EMBEDDING_MODEL = os.getenv("AZURE_EMBEDDING_MODEL", "text-embedding-3-large")
+AZURE_EMBEDDING_MODEL = os.getenv("AZURE_EMBEDDING_MODEL", "text-embedding-3-large-2")
 AZURE_EMBEDDING_DIMENSIONS = int(os.getenv("AZURE_EMBEDDING_DIMENSIONS", "3072"))
 
 # Cached client

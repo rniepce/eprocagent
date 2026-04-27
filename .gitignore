@@ -32,6 +32,9 @@ data/manuais/*.docx
 data/manuais/*.doc
 !data/manuais/.gitkeep
 
+# Manuais — dados de ingestão (não versionar; carregar via batch_ingest)
+manuais/
+
 # Docker
 pgdata/
 

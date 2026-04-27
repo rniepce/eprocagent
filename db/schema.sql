@@ -30,10 +30,9 @@ CREATE TABLE IF NOT EXISTS chunks (
 );
 
 -- ── Indexes ─────────────────────────────────────────────────────
--- Vector similarity search (IVFFlat)
-CREATE INDEX IF NOT EXISTS idx_chunks_embedding
-    ON chunks USING ivfflat (embedding vector_cosine_ops)
-    WITH (lists = 100);
+-- Vector similarity: sem índice. IVFFlat/HNSW do pgvector não suportam
+-- vector(3072) (limite ~2000 dims). Para o volume atual (~10² documentos,
+-- ~10³–10⁴ chunks) o seq scan com `<=>` é rápido o suficiente.
 
 -- Full-text search (Portuguese)
 CREATE INDEX IF NOT EXISTS idx_chunks_fulltext
