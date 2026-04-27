@@ -4,44 +4,50 @@ import logging
 import os
 from typing import List
 
-from openai import OpenAI
+from openai import AzureOpenAI
 from src.utils.db import get_db_connection, release_db_connection
 from src.backend.models import ChatRequest, SourceItem
 
 logger = logging.getLogger(__name__)
 
-# ── OpenAI Configuration ────────────────────────────────────────
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_LLM_MODEL = os.getenv("OPENAI_LLM_MODEL", "gpt-4o")
-OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-large")
-OPENAI_EMBEDDING_DIMENSIONS = int(os.getenv("OPENAI_EMBEDDING_DIMENSIONS", "3072"))
+# ── Azure OpenAI Configuration ──────────────────────────────────
+AZURE_API_KEY = os.getenv("AZURE_API_KEY")
+AZURE_ENDPOINT = os.getenv("AZURE_ENDPOINT", "https://assistente-web-resource.cognitiveservices.azure.com/")
+AZURE_API_VERSION = os.getenv("AZURE_API_VERSION", "2024-12-01-preview")
+AZURE_LLM_MODEL = os.getenv("AZURE_LLM_MODEL", "gpt-5.5")
+AZURE_EMBEDDING_MODEL = os.getenv("AZURE_EMBEDDING_MODEL", "text-embedding-3-large")
+AZURE_EMBEDDING_DIMENSIONS = int(os.getenv("AZURE_EMBEDDING_DIMENSIONS", "3072"))
 
 # Cached client
-_OPENAI_CLIENT: OpenAI | None = None
+_AZURE_CLIENT: AzureOpenAI | None = None
 
 
-def get_openai_client() -> OpenAI | None:
-    """Initialize and cache the OpenAI client."""
-    global _OPENAI_CLIENT
-    if _OPENAI_CLIENT is None:
-        if not OPENAI_API_KEY:
-            logger.warning("OPENAI_API_KEY not set — OpenAI disabled")
+def get_azure_client() -> AzureOpenAI | None:
+    """Initialize and cache the Azure OpenAI client."""
+    global _AZURE_CLIENT
+    if _AZURE_CLIENT is None:
+        if not AZURE_API_KEY:
+            logger.warning("AZURE_API_KEY not set — Azure OpenAI disabled")
             return None
         try:
-            _OPENAI_CLIENT = OpenAI(api_key=OPENAI_API_KEY)
-            logger.info(f"OpenAI client initialized (LLM: {OPENAI_LLM_MODEL}, Embeddings: {OPENAI_EMBEDDING_MODEL})")
+            _AZURE_CLIENT = AzureOpenAI(
+                api_key=AZURE_API_KEY,
+                azure_endpoint=AZURE_ENDPOINT,
+                api_version=AZURE_API_VERSION,
+            )
+            logger.info(f"Azure OpenAI client initialized (LLM: {AZURE_LLM_MODEL}, Embeddings: {AZURE_EMBEDDING_MODEL})")
         except Exception as e:
-            logger.error(f"Failed to initialize OpenAI client: {e}")
-    return _OPENAI_CLIENT
+            logger.error(f"Failed to initialize Azure OpenAI client: {e}")
+    return _AZURE_CLIENT
 
 
 def get_active_llm_info() -> dict:
     """Return info about the currently active LLM provider and model."""
-    if get_openai_client() is not None:
+    if get_azure_client() is not None:
         return {
-            "provider": "openai",
-            "model": OPENAI_LLM_MODEL,
-            "label": f"{OPENAI_LLM_MODEL} (OpenAI)",
+            "provider": "azure",
+            "model": AZURE_LLM_MODEL,
+            "label": f"{AZURE_LLM_MODEL} (Azure AI)",
         }
     return {"provider": "none", "model": "none", "label": "Nenhum LLM configurado"}
 
@@ -65,10 +71,10 @@ INSTRUÇÕES:
 
 
 def _llm_generate(prompt: str, system_prompt: str = None) -> str:
-    """Generate text using OpenAI."""
-    client = get_openai_client()
+    """Generate text using Azure OpenAI (GPT-5.5)."""
+    client = get_azure_client()
     if client is None:
-        raise RuntimeError("OpenAI client not configured (missing OPENAI_API_KEY)")
+        raise RuntimeError("Azure OpenAI client not configured (missing AZURE_API_KEY)")
 
     messages = []
     if system_prompt:
@@ -76,7 +82,7 @@ def _llm_generate(prompt: str, system_prompt: str = None) -> str:
     messages.append({"role": "user", "content": prompt})
 
     response = client.chat.completions.create(
-        model=OPENAI_LLM_MODEL,
+        model=AZURE_LLM_MODEL,
         messages=messages,
         max_completion_tokens=2048,
         temperature=0.3,
@@ -86,31 +92,31 @@ def _llm_generate(prompt: str, system_prompt: str = None) -> str:
 
 def _generate_embedding(text: str) -> list[float]:
     """Generate embedding vector for a single text."""
-    client = get_openai_client()
+    client = get_azure_client()
     if client is None:
-        raise RuntimeError("OpenAI client not configured (missing OPENAI_API_KEY)")
+        raise RuntimeError("Azure OpenAI client not configured (missing AZURE_API_KEY)")
 
     response = client.embeddings.create(
         input=[text],
-        model=OPENAI_EMBEDDING_MODEL,
-        dimensions=OPENAI_EMBEDDING_DIMENSIONS,
+        model=AZURE_EMBEDDING_MODEL,
+        dimensions=AZURE_EMBEDDING_DIMENSIONS,
     )
     return response.data[0].embedding
 
 
 def _generate_embeddings_batch(texts: list[str]) -> list[list[float]]:
     """Generate embeddings for a batch of texts (max 100 per call)."""
-    client = get_openai_client()
+    client = get_azure_client()
     if client is None:
-        raise RuntimeError("OpenAI client not configured (missing OPENAI_API_KEY)")
+        raise RuntimeError("Azure OpenAI client not configured (missing AZURE_API_KEY)")
 
     all_embeddings = []
     for i in range(0, len(texts), 100):
         batch = texts[i:i + 100]
         response = client.embeddings.create(
             input=batch,
-            model=OPENAI_EMBEDDING_MODEL,
-            dimensions=OPENAI_EMBEDDING_DIMENSIONS,
+            model=AZURE_EMBEDDING_MODEL,
+            dimensions=AZURE_EMBEDDING_DIMENSIONS,
         )
         all_embeddings.extend([d.embedding for d in response.data])
 
@@ -297,7 +303,7 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
             await release_db_connection(conn)
 
     async def generate_answer(self, query: str, context: List[SourceItem]) -> str:
-        """Generate answer using OpenAI with RAG context."""
+        """Generate answer using Azure OpenAI (GPT-5.5) with RAG context."""
         if not context:
             return "Não encontrei informações relevantes nos manuais do eProc para sua pergunta. Tente reformular usando termos mais específicos."
 
