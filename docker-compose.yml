@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg15
+    container_name: eproc_agent_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eproc_dev_2026}
+      POSTGRES_DB: eproc_rag
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d eproc_rag"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

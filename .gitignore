@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+venv/
+.venv/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Node
+node_modules/
+src/frontend/dist/
+src/frontend/.vite/
+
+# Data
+data/chromadb/
+data/manuais/*.pdf
+data/manuais/*.docx
+data/manuais/*.doc
+!data/manuais/.gitkeep
+
+# Docker
+pgdata/
+
+# Logs
+*.log
