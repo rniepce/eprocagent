@@ -84,8 +84,7 @@ def _llm_generate(prompt: str, system_prompt: str = None) -> str:
     response = client.chat.completions.create(
         model=AZURE_LLM_MODEL,
         messages=messages,
-        max_completion_tokens=2048,
-        temperature=0.3,
+        max_completion_tokens=16384,
     )
     return response.choices[0].message.content.strip()
 
