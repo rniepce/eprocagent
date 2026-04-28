@@ -1,7 +1,7 @@
 """Pydantic models for API request/response schemas."""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Union
 
 
 class ChatRequest(BaseModel):
@@ -45,10 +45,27 @@ class AnswerStructured(BaseModel):
     followups: list[str] = Field(default_factory=list, description="2-3 perguntas para aprofundar")
 
 
+class DisambiguationOption(BaseModel):
+    label: str = Field(..., description="Texto curto da opção (1-3 palavras)")
+    icon: Optional[str] = Field(None, description="Emoji opcional para ilustrar a opção")
+    query: str = Field(..., description="Pergunta literal a ser enviada se o usuário escolher")
+    hint: Optional[str] = Field(None, description="Frase curta explicando o que essa opção cobre")
+
+
+class DisambiguationStructured(BaseModel):
+    """Structured payload when the user query is ambiguous (Fase 3)."""
+    mode: str = "disambiguation"
+    pergunta: str = Field(..., description="Pergunta-guia exibida ao usuário, ex: 'Você quer configurar:'")
+    opcoes: list[DisambiguationOption] = Field(..., min_length=2, max_length=6)
+
+
+ChatStructured = Union[AnswerStructured, DisambiguationStructured]
+
+
 class ChatResponse(BaseModel):
     """Response body for the chat endpoint."""
     answer: str
-    structured: Optional[AnswerStructured] = None
+    structured: Optional[ChatStructured] = None
     sources: list[SourceItem] = []
     session_id: Optional[str] = None
 

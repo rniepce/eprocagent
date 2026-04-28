@@ -1,10 +1,10 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ArrowRight, AlertTriangle, BookOpen, ListOrdered, Sparkles } from 'lucide-react';
-import type { AnswerStructured } from './types';
+import { ArrowRight, AlertTriangle, BookOpen, ListOrdered, Sparkles, HelpCircle } from 'lucide-react';
+import type { AnswerStructured, ChatStructured, DisambiguationStructured } from './types';
 
 type Props = {
-  data: AnswerStructured;
+  data: ChatStructured;
   onFollowup: (q: string) => void;
 };
 
@@ -13,6 +13,53 @@ const md = (text: string) => (
 );
 
 export function StructuredAnswer({ data, onFollowup }: Props) {
+  if (data.mode === 'disambiguation') {
+    return <Disambiguation data={data} onChoose={onFollowup} />;
+  }
+  return <Answer data={data} onFollowup={onFollowup} />;
+}
+
+function Disambiguation({
+  data,
+  onChoose,
+}: {
+  data: DisambiguationStructured;
+  onChoose: (q: string) => void;
+}) {
+  return (
+    <div className="structured-answer">
+      <div className="sa-disamb-header">
+        <HelpCircle size={18} className="sa-disamb-icon" />
+        <div className="sa-disamb-pergunta">{data.pergunta}</div>
+      </div>
+      <div className="sa-disamb-grid">
+        {data.opcoes.map((o, i) => (
+          <button
+            key={i}
+            type="button"
+            className="sa-disamb-card"
+            onClick={() => onChoose(o.query)}
+          >
+            {o.icon && <span className="sa-disamb-card-icon">{o.icon}</span>}
+            <span className="sa-disamb-card-body">
+              <span className="sa-disamb-card-label">{o.label}</span>
+              {o.hint && <span className="sa-disamb-card-hint">{o.hint}</span>}
+            </span>
+            <ArrowRight size={16} className="sa-disamb-card-arrow" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Answer({
+  data,
+  onFollowup,
+}: {
+  data: AnswerStructured;
+  onFollowup: (q: string) => void;
+}) {
   return (
     <div className="structured-answer">
       <div className="sa-tldr">

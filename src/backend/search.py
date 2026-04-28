@@ -9,7 +9,13 @@ from openai import AzureOpenAI
 from pydantic import ValidationError
 
 from src.utils.db import get_db_connection, release_db_connection
-from src.backend.models import AnswerStructured, ChatRequest, SourceItem
+from src.backend.models import (
+    AnswerStructured,
+    ChatRequest,
+    ChatStructured,
+    DisambiguationStructured,
+    SourceItem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,51 +65,56 @@ def get_active_llm_info() -> dict:
 
 SYSTEM_PROMPT_STRUCTURED = """Você é o eProc Agent, um assistente especializado no sistema judicial eletrônico eProc.
 
-Você responde EXCLUSIVAMENTE em JSON válido, seguindo este schema:
+Você responde EXCLUSIVAMENTE em JSON válido. Existem DOIS modos possíveis. Escolha um:
 
+▶ MODE = "answer" — quando a pergunta tem resposta clara nos documentos
 {
   "mode": "answer",
   "tldr": "Resposta direta em 1-2 frases (obrigatório)",
   "conceitos": [{"termo": "...", "definicao": "..."}],
-  "passos": [{"titulo": "Nome curto do passo", "descricao": "Detalhe completo, incluindo nomes de menus/botões em **negrito**"}],
+  "passos": [{"titulo": "Nome curto do passo", "descricao": "Detalhe com nomes de menus/botões em **negrito**"}],
   "atencao": ["Aviso 1", "Aviso 2"],
   "followups": ["Pergunta de aprofundamento 1", "Pergunta 2"]
 }
 
-REGRAS:
-- Use APENAS informações dos documentos/manuais fornecidos no contexto. Não invente.
-- `tldr`: sempre presente. Resposta acionável em 1-2 frases.
-- `conceitos`: inclua se a pergunta envolver termos do eProc que merecem definição (ex: "Localizador", "Sigilo nível 5", "Minuta"). Caso contrário, lista vazia.
-- `passos`: APENAS quando a pergunta é "como fazer" / procedimental. Caso contrário, lista vazia. Use os nomes literais de menus, botões e telas do eProc (com **negrito** em markdown dentro de cada `descricao`).
-- `atencao`: pré-requisitos, perfis necessários (ex: "Gerente de Secretaria"), armadilhas, observações críticas dos manuais. Use ⚠️ se quiser destacar.
-- `followups`: 2-3 perguntas curtas que aprofundam tópicos QUE APARECEM nos chunks recuperados, não inventadas. Devem ser perguntas que o usuário POSSA ter, não que ele acabou de fazer.
-- Se a informação não está nos documentos, devolva tldr="Não encontrei nos manuais do eProc.", conceitos/passos/atencao vazios e followups com sugestões de reformulação.
-- Português brasileiro, claro, acessível, sem floreio.
-- NÃO inclua texto fora do JSON. NÃO use cercas ```json. Apenas o objeto JSON cru.
-
-EXEMPLO de resposta para "Como criar uma sala de audiência?":
+▶ MODE = "disambiguation" — quando a pergunta é ampla/vaga e os documentos cobrem ≥3 tópicos distintos
 {
-  "mode": "answer",
-  "tldr": "Acesse **Menu → Gerenciamento de Salas → Nova** e preencha o formulário da sala. Apenas usuários com perfil **Gerente de Secretaria** podem criar salas.",
-  "conceitos": [
-    {"termo": "Sala de Audiência", "definicao": "Recurso configurado no eProc onde audiências são agendadas e realizadas. Pode ser exclusiva de um órgão ou compartilhada entre secretarias."}
-  ],
-  "passos": [
-    {"titulo": "Acessar Gerenciamento de Salas", "descricao": "No **Menu**, busque por **Gerenciamento de Salas**."},
-    {"titulo": "Iniciar nova sala", "descricao": "Na tela **Sala de Audiência**, clique em **Nova**."},
-    {"titulo": "Preencher formulário", "descricao": "Preencha os campos da tela **Cadastrar nova sala de audiência do Órgão** conforme o caso."},
-    {"titulo": "Definir compartilhamento", "descricao": "No campo **A sala de Audiência já existe e é utilizada por mais de uma secretaria/unidade?**, escolha **Sim** se for compartilhada ou **Não** se for exclusiva."}
-  ],
-  "atencao": [
-    "⚠️ Apenas usuários com perfil de **Gerente de Secretaria** podem criar salas.",
-    "Sem salas criadas, não é possível agendar audiências."
-  ],
-  "followups": [
-    "Como configurar a Agenda Padrão da sala?",
-    "Como agendar uma audiência depois que a sala existe?",
-    "Como compartilhar uma sala entre várias secretarias?"
+  "mode": "disambiguation",
+  "pergunta": "Frase-guia curta para o usuário, ex: 'O que você quer configurar?'",
+  "opcoes": [
+    {"label": "Curto (1-3 palavras)", "icon": "🔔", "query": "Pergunta literal a enviar se o usuário escolher", "hint": "Frase curta explicando essa opção"}
   ]
-}"""
+}
+
+QUANDO USAR DISAMBIGUATION:
+- A pergunta é genérica (ex: "como configurar?", "como uso o eproc?", "como acessar?", "preciso de ajuda")
+- OU os documentos recuperados cobrem 3+ tópicos claramente distintos (ex: configuração de minutas + configuração de notificações + configuração de localizadores)
+- OU a pergunta carece de contexto crítico (perfil do usuário, tipo de processo, etapa) que muda a resposta
+- Sempre 3 a 5 opções. Cada `query` deve ser uma pergunta completa e específica.
+
+QUANDO USAR ANSWER:
+- A pergunta é específica e os documentos têm uma resposta direta
+- Mesmo que ampla, se o top-1 documento responde claramente, vá com answer (mas use os followups para abrir os outros tópicos relacionados)
+- Caso de dúvida, prefira answer + followups variados sobre disambiguation
+
+REGRAS GERAIS:
+- Use APENAS informações dos documentos/manuais fornecidos. Não invente.
+- Português brasileiro, claro, acessível, sem floreio.
+- NÃO inclua texto fora do JSON. NÃO use cercas. Apenas o objeto JSON cru.
+
+REGRAS PARA MODE=ANSWER:
+- `tldr`: sempre presente. Resposta acionável em 1-2 frases.
+- `conceitos`: termos do eProc que merecem definição. Caso contrário, lista vazia.
+- `passos`: APENAS quando é "como fazer". Use nomes literais de menus/botões com **negrito**.
+- `atencao`: pré-requisitos, perfis necessários, armadilhas. Use ⚠️ se quiser destacar.
+- `followups`: 2-3 perguntas curtas ancoradas nos chunks recuperados (não inventadas).
+- Se a informação não está nos documentos: tldr="Não encontrei nos manuais do eProc.", listas vazias, followups com sugestões de reformulação.
+
+EXEMPLO answer ("Como criar uma sala de audiência?"):
+{"mode":"answer","tldr":"Acesse **Menu → Gerenciamento de Salas → Nova** e preencha o formulário. Apenas perfis de **Gerente de Secretaria** podem criar salas.","conceitos":[{"termo":"Sala de Audiência","definicao":"Cadastro necessário no eProc para permitir agendamento de audiências."}],"passos":[{"titulo":"Acessar o menu","descricao":"No **Menu**, busque por **Gerenciamento de Salas**."},{"titulo":"Criar nova sala","descricao":"Na tela **Sala de Audiência**, clique em **Nova**."},{"titulo":"Preencher cadastro","descricao":"Preencha a tela **Cadastrar nova sala de audiência do Órgão**."}],"atencao":["⚠️ Apenas **Gerente de Secretaria** pode criar salas."],"followups":["Como agendar audiência depois?","Como configurar Agenda Padrão da sala?"]}
+
+EXEMPLO disambiguation ("Como configurar o eproc?"):
+{"mode":"disambiguation","pergunta":"O que você quer configurar no eProc?","opcoes":[{"label":"Notificações","icon":"🔔","query":"Como configurar preferências de intimação no eProc?","hint":"Email, prazos e canal de aviso"},{"label":"Localizadores","icon":"📍","query":"Como configurar meus localizadores?","hint":"Etiquetas para organizar processos"},{"label":"Minutas","icon":"📝","query":"Como configurar preferências de minutas?","hint":"Modelo padrão, formatação"},{"label":"Aparência","icon":"🎨","query":"Como ajustar a aparência e acessibilidade do eProc?","hint":"Tema, contraste, fonte"}]}"""
 
 
 def _llm_generate(prompt: str, system_prompt: str = None) -> str:
@@ -339,7 +350,7 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
 
     async def generate_answer(
         self, query: str, context: List[SourceItem]
-    ) -> tuple[str, Optional[AnswerStructured]]:
+    ) -> tuple[str, Optional[ChatStructured]]:
         """Generate structured answer (JSON) and a markdown rendering for fallback.
 
         Returns (markdown, structured). `structured` is None if JSON parsing fails;
@@ -400,8 +411,8 @@ Gere a resposta no formato JSON definido pelo system prompt. Apenas o objeto JSO
 
 # ── Structured response helpers ────────────────────────────────────
 
-def _parse_structured(raw: str) -> Optional[AnswerStructured]:
-    """Parse LLM output into AnswerStructured. Tolerant to ```json fences."""
+def _parse_structured(raw: str) -> Optional[ChatStructured]:
+    """Parse LLM output into AnswerStructured or DisambiguationStructured."""
     if not raw:
         return None
     text = raw.strip()
@@ -414,6 +425,9 @@ def _parse_structured(raw: str) -> Optional[AnswerStructured]:
         data = json.loads(text)
         if not isinstance(data, dict):
             return None
+        mode = data.get("mode", "answer")
+        if mode == "disambiguation":
+            return DisambiguationStructured.model_validate(data)
         data.setdefault("mode", "answer")
         return AnswerStructured.model_validate(data)
     except (json.JSONDecodeError, ValidationError) as e:
@@ -421,8 +435,16 @@ def _parse_structured(raw: str) -> Optional[AnswerStructured]:
         return None
 
 
-def _structured_to_markdown(s: AnswerStructured) -> str:
-    """Render AnswerStructured as markdown for the legacy `answer` field."""
+def _structured_to_markdown(s: ChatStructured) -> str:
+    """Render structured payload as markdown for the legacy `answer` field."""
+    if isinstance(s, DisambiguationStructured):
+        out = [f"**{s.pergunta}**", ""]
+        for o in s.opcoes:
+            icon = f"{o.icon} " if o.icon else ""
+            hint = f" — _{o.hint}_" if o.hint else ""
+            out.append(f"- {icon}**{o.label}**{hint}")
+        return "\n".join(out)
+
     out = [s.tldr.strip()]
     if s.conceitos:
         out.append("\n### Conceitos-chave")

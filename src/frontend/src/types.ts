@@ -32,18 +32,33 @@ export interface AnswerStructured {
   followups: string[];
 }
 
+export interface DisambiguationOption {
+  label: string;
+  icon?: string;
+  query: string;
+  hint?: string;
+}
+
+export interface DisambiguationStructured {
+  mode: 'disambiguation';
+  pergunta: string;
+  opcoes: DisambiguationOption[];
+}
+
+export type ChatStructured = AnswerStructured | DisambiguationStructured;
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  structured?: AnswerStructured;
+  structured?: ChatStructured;
   sources?: Source[];
   timestamp: Date;
 }
 
 export interface ChatResponse {
   answer: string;
-  structured?: AnswerStructured;
+  structured?: ChatStructured;
   sources: Source[];
   session_id?: string;
 }

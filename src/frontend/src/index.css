@@ -362,3 +362,37 @@ html, body, #root {
 }
 .sa-followup-chip svg { color: var(--accent-blue-light); flex-shrink: 0; }
 
+/* ── Disambiguation ─────────────────────────────── */
+.sa-disamb-header {
+  display: flex; gap: 0.65rem; align-items: center;
+  padding: 0.6rem 0.2rem 0.4rem;
+}
+.sa-disamb-icon { color: var(--accent-purple); flex-shrink: 0; }
+.sa-disamb-pergunta { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); }
+
+.sa-disamb-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.6rem;
+}
+.sa-disamb-card {
+  display: flex; align-items: center; gap: 0.7rem;
+  padding: 0.85rem 0.95rem; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border-strong);
+  font-family: inherit; color: var(--text-primary); cursor: pointer;
+  transition: var(--transition); text-align: left;
+}
+.sa-disamb-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+.sa-disamb-card-icon { font-size: 1.4rem; flex-shrink: 0; }
+.sa-disamb-card-body { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
+.sa-disamb-card-label { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); }
+.sa-disamb-card-hint { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.35; }
+.sa-disamb-card-arrow { color: var(--accent-blue-light); flex-shrink: 0; }
+@media (max-width: 768px) {
+  .sa-disamb-grid { grid-template-columns: 1fr; }
+}
+
