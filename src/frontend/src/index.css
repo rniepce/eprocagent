@@ -39,6 +39,23 @@ html, body, #root {
   overflow: hidden;
   display: flex;
 }
+html {
+  display: block; /* Ou remova o display: flex do html se não for intencional */
+  width: 100%;
+  margin: 0;
+}
+
+body {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  display: flex; /* Se quiser manter o body como flex para o #root */
+}
+
+#root {
+  width: 100%;
+  flex-grow: 1;
+}
 
 /* ── Sidebar ─────────────────────────────────────── */
 .sidebar {
