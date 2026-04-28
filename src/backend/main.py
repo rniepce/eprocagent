@@ -458,8 +458,12 @@ async def get_session(session_id: str):
 
 
 @app.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: str, _auth=Depends(verify_api_key)):
-    """Delete a session and all its messages."""
+async def delete_session(session_id: str):
+    """Delete a session and all its messages.
+
+    Sem auth: o session_id é um UUID v4 conhecido apenas pelo device que
+    o gerou (armazenado em localStorage). Conhecer o ID prova posse.
+    """
     from src.utils.db import get_db_connection, release_db_connection
 
     conn = await get_db_connection()

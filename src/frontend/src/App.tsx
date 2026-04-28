@@ -200,6 +200,23 @@ export default function App() {
     refreshSessions();
   }, [refreshSessions]);
 
+  const deleteSession = useCallback(async (id: string) => {
+    try {
+      await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      if (id === sessionId) {
+        const newId = uuid();
+        localStorage.setItem(SESSION_STORAGE_KEY, newId);
+        setSessionId(newId);
+        setMessages([]);
+      }
+      refreshSessions();
+    } catch {
+      /* silent */
+    }
+  }, [sessionId, refreshSessions]);
+
   const loadSession = useCallback(async (id: string) => {
     try {
       const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(id)}`);
@@ -292,6 +309,7 @@ export default function App() {
         sessions={sessions}
         currentSessionId={sessionId}
         onSelectSession={loadSession}
+        onDeleteSession={deleteSession}
       />
 
       {/* Main Content */}

@@ -1,5 +1,5 @@
 import React, { useRef, type ChangeEvent } from 'react';
-import { Plus, Upload, Database, Filter, X, MessageCircle } from 'lucide-react';
+import { Plus, Upload, Database, Filter, X, MessageCircle, Trash2 } from 'lucide-react';
 import type { SidebarProps } from './types';
 import { EprocLogo } from './EprocLogo';
 
@@ -17,7 +17,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   isOpen, onClose, onSuggestionClick,
   modelInfo, documents,
   sections, selectedSections, onToggleSection, onClearSections,
-  sessions, currentSessionId, onSelectSession,
+  sessions, currentSessionId, onSelectSession, onDeleteSession,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -65,16 +65,33 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="session-list">
             {sessions.slice(0, 8).map((s) => (
-              <button
+              <div
                 key={s.session_id}
-                type="button"
                 className={`session-item ${s.session_id === currentSessionId ? 'active' : ''}`}
-                onClick={() => { onSelectSession(s.session_id); onClose(); }}
                 title={s.last_at ? new Date(s.last_at).toLocaleString() : ''}
               >
-                <span className="session-title">{s.title}</span>
-                <span className="session-count">{s.msg_count}</span>
-              </button>
+                <button
+                  type="button"
+                  className="session-open"
+                  onClick={() => { onSelectSession(s.session_id); onClose(); }}
+                >
+                  <span className="session-title">{s.title}</span>
+                  <span className="session-count">{s.msg_count}</span>
+                </button>
+                <button
+                  type="button"
+                  className="session-delete"
+                  aria-label="Excluir conversa"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('Excluir esta conversa? Não dá para desfazer.')) {
+                      onDeleteSession(s.session_id);
+                    }
+                  }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             ))}
           </div>
         </div>

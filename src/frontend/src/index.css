@@ -524,11 +524,10 @@ html, body, #root {
 /* ── Past sessions ──────────────────────────────── */
 .session-list { display: flex; flex-direction: column; gap: 0.25rem; }
 .session-item {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 0.5rem; padding: 0.5rem 0.7rem; border-radius: var(--radius-sm);
+  display: flex; align-items: stretch; gap: 0.2rem;
+  border-radius: var(--radius-sm);
   background: transparent; border: 1px solid transparent;
-  color: var(--text-secondary); font-size: 0.78rem; font-family: inherit;
-  cursor: pointer; transition: var(--transition); text-align: left;
+  color: var(--text-secondary); transition: var(--transition);
 }
 .session-item:hover {
   background: var(--surface);
@@ -540,6 +539,14 @@ html, body, #root {
   color: var(--text-primary);
   border-color: var(--accent-blue);
 }
+.session-open {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding: 0.5rem 0.6rem;
+  background: transparent; border: none; color: inherit;
+  font-size: 0.78rem; font-family: inherit;
+  cursor: pointer; text-align: left;
+}
 .session-title {
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -549,4 +556,13 @@ html, body, #root {
   padding: 1px 5px; border-radius: var(--radius-full);
   background: rgba(255,255,255,0.06);
 }
+.session-delete {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; padding: 0; border: none;
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; opacity: 0; transition: var(--transition);
+  border-radius: var(--radius-sm);
+}
+.session-item:hover .session-delete { opacity: 1; }
+.session-delete:hover { color: #ef4444; background: rgba(239,68,68,0.12); }
 

@@ -116,4 +116,5 @@ export interface SidebarProps {
   sessions: SessionSummaryItem[];
   currentSessionId: string;
   onSelectSession: (id: string) => void;
+  onDeleteSession: (id: string) => void;
 }
