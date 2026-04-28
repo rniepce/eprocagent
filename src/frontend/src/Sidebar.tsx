@@ -1,6 +1,7 @@
 import React, { useRef, type ChangeEvent } from 'react';
-import { Plus, Upload, Database, Zap } from 'lucide-react';
+import { Plus, Upload, Database } from 'lucide-react';
 import type { SidebarProps } from './types';
+import { EprocLogo } from './EprocLogo';
 
 const SUGGESTIONS = [
   '📋 Como peticionar no eProc?',
@@ -30,9 +31,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     <div className={`sidebar ${isOpen ? 'open' : ''}`}>
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <Zap size={20} />
-        </div>
+        <EprocLogo size={44} />
         <div>
           <div className="sidebar-logo-text">eProc Agent</div>
           <div className="sidebar-logo-sub">ASSISTENTE JUDICIAL</div>
