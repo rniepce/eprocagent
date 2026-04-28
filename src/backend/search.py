@@ -140,13 +140,28 @@ REGISTRO: linguagem técnica, formal, apropriada para profissionais do direito.
 
 def _llm_generate(prompt: str, system_prompt: str = None) -> str:
     """Generate text using Azure OpenAI (GPT-5.5)."""
+    return _llm_generate_with_history(prompt, system_prompt=system_prompt, history=[])
+
+
+def _llm_generate_with_history(
+    prompt: str,
+    system_prompt: str = None,
+    history: list[dict] | None = None,
+) -> str:
+    """Generate text with optional prior conversation messages injected."""
     client = get_azure_client()
     if client is None:
         raise RuntimeError("Azure OpenAI client not configured (missing AZURE_API_KEY)")
 
-    messages = []
+    messages: list[dict] = []
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
+    if history:
+        for h in history:
+            role = h.get("role")
+            content = h.get("content") or ""
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content[:4000]})
     messages.append({"role": "user", "content": prompt})
 
     response = client.chat.completions.create(
@@ -282,12 +297,21 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
             embedding_str = str(embedding)
 
             # 3. Build hybrid search query
-            params = [embedding_str]
+            params: list = [embedding_str]
+            secoes_filter_sql = ""
+            if request.secoes:
+                params.append(request.secoes)
+                # placeholder index will be filled below per-branch
 
             if request.use_hybrid_search:
                 params.append(rewritten_query)
+                secao_param_idx = 2 if request.secoes else None
+                query_param_idx = 3 if request.secoes else 2
+                secao_clause_v = (
+                    f" AND d.secao = ANY(${secao_param_idx})" if secao_param_idx else ""
+                )
 
-                query_sql = """
+                query_sql = f"""
                     WITH vector_search AS (
                         SELECT
                             c.id,
@@ -303,6 +327,7 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
                         FROM chunks c
                         JOIN documentos d ON c.documento_id = d.id
                         WHERE 1 - (c.embedding <=> $1::vector) > 0.20
+                              {secao_clause_v}
                         ORDER BY c.embedding <=> $1::vector ASC
                         LIMIT 30
                     ),
@@ -311,11 +336,11 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
                             c.id,
                             ts_rank_cd(
                                 to_tsvector('portuguese', c.conteudo_texto),
-                                plainto_tsquery('portuguese', $2)
+                                plainto_tsquery('portuguese', ${query_param_idx})
                             ) as keyword_score
                         FROM chunks c
                         WHERE to_tsvector('portuguese', c.conteudo_texto)
-                              @@ plainto_tsquery('portuguese', $2)
+                              @@ plainto_tsquery('portuguese', ${query_param_idx})
                     )
                     SELECT
                         v.*,
@@ -327,7 +352,11 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
                     LIMIT 20
                 """
             else:
-                query_sql = """
+                secao_param_idx = 2 if request.secoes else None
+                secao_clause = (
+                    f" AND d.secao = ANY(${secao_param_idx})" if secao_param_idx else ""
+                )
+                query_sql = f"""
                     SELECT
                         c.documento_id,
                         d.filename,
@@ -341,6 +370,7 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
                     FROM chunks c
                     JOIN documentos d ON c.documento_id = d.id
                     WHERE 1 - (c.embedding <=> $1::vector) > 0.20
+                          {secao_clause}
                     ORDER BY combined_score DESC
                     LIMIT 20
                 """
@@ -374,6 +404,7 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
         query: str,
         context: List[SourceItem],
         language_mode: str = "simple",
+        history: Optional[List[dict]] = None,
     ) -> tuple[str, Optional[ChatStructured]]:
         """Generate structured answer (JSON) and a markdown rendering for fallback.
 
@@ -416,7 +447,9 @@ Gere a resposta no formato JSON definido pelo system prompt. Apenas o objeto JSO
         system_prompt = SYSTEM_PROMPT_STRUCTURED + directive
 
         try:
-            raw = _llm_generate(prompt, system_prompt=system_prompt)
+            raw = _llm_generate_with_history(
+                prompt, system_prompt=system_prompt, history=history or []
+            )
             structured = _parse_structured(raw)
             if structured is None:
                 logger.warning("structured parse failed, returning markdown fallback")

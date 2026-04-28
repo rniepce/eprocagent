@@ -16,6 +16,10 @@ class ChatRequest(BaseModel):
         pattern="^(simple|technical)$",
         description="Tom da resposta: 'simple' (acessível) ou 'technical' (formal/jurídico)",
     )
+    secoes: list[str] = Field(
+        default_factory=list,
+        description="Filtro opcional: limita a busca aos documentos com `secao` em qualquer um dos valores",
+    )
 
 
 class SourceItem(BaseModel):

@@ -1,5 +1,5 @@
 import React, { useRef, type ChangeEvent } from 'react';
-import { Plus, Upload, Database } from 'lucide-react';
+import { Plus, Upload, Database, Filter, X, MessageCircle } from 'lucide-react';
 import type { SidebarProps } from './types';
 import { EprocLogo } from './EprocLogo';
 
@@ -16,6 +16,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClearChat, onUploadFile, isUploading,
   isOpen, onClose, onSuggestionClick,
   modelInfo, documents,
+  sections, selectedSections, onToggleSection, onClearSections,
+  sessions, currentSessionId, onSelectSession,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,6 +54,71 @@ const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ))}
       </div>
+
+      <hr className="sidebar-divider" />
+
+      {/* Past conversations */}
+      {sessions.length > 0 && (
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">
+            <MessageCircle size={11} /> Conversas anteriores
+          </div>
+          <div className="session-list">
+            {sessions.slice(0, 8).map((s) => (
+              <button
+                key={s.session_id}
+                type="button"
+                className={`session-item ${s.session_id === currentSessionId ? 'active' : ''}`}
+                onClick={() => { onSelectSession(s.session_id); onClose(); }}
+                title={s.last_at ? new Date(s.last_at).toLocaleString() : ''}
+              >
+                <span className="session-title">{s.title}</span>
+                <span className="session-count">{s.msg_count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <hr className="sidebar-divider" />
+
+      {/* Section filter */}
+      {sections.length > 0 && (
+        <div className="sidebar-section">
+          <div className="sidebar-section-title-row">
+            <span className="sidebar-section-title">
+              <Filter size={11} /> Filtrar por seção
+            </span>
+            {selectedSections.length > 0 && (
+              <button
+                type="button"
+                className="sidebar-clear-btn"
+                onClick={onClearSections}
+                aria-label="Limpar filtros"
+              >
+                <X size={12} /> Limpar
+              </button>
+            )}
+          </div>
+          <div className="section-chips">
+            {sections.map((s) => {
+              const active = selectedSections.includes(s.secao);
+              return (
+                <button
+                  key={s.secao}
+                  type="button"
+                  className={`section-chip ${active ? 'active' : ''}`}
+                  onClick={() => onToggleSection(s.secao)}
+                  title={`${s.count} documento(s)`}
+                >
+                  {s.secao}
+                  <span className="section-chip-count">{s.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <hr className="sidebar-divider" />
 

@@ -2,11 +2,34 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu, Sparkles, Briefcase } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import Sidebar from './Sidebar';
-import type { Message, ModelInfo, DocumentInfo } from './types';
+import type { Message, ModelInfo, DocumentInfo, SectionInfo } from './types';
 import './index.css';
 
 type LanguageMode = 'simple' | 'technical';
 const LANG_STORAGE_KEY = 'eproc.language_mode';
+const SESSION_STORAGE_KEY = 'eproc.session_id';
+
+function uuid(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+interface SessionSummary {
+  session_id: string;
+  title: string;
+  msg_count: number;
+  last_at?: string | null;
+}
+
+interface PersistedMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: any[] | null;
+  structured?: any | null;
+}
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8080' : '';
 
@@ -28,11 +51,26 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
+  const [sections, setSections] = useState<SectionInfo[]>([]);
+  const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [languageMode, setLanguageMode] = useState<LanguageMode>(() => {
     const saved = localStorage.getItem(LANG_STORAGE_KEY);
     return saved === 'technical' ? 'technical' : 'simple';
   });
+  const [sessionId, setSessionId] = useState<string>(() => {
+    let id = localStorage.getItem(SESSION_STORAGE_KEY);
+    if (!id) {
+      id = uuid();
+      localStorage.setItem(SESSION_STORAGE_KEY, id);
+    }
+    return id;
+  });
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+
+  const refreshSessions = useCallback(() => {
+    fetch(`${API_BASE}/api/sessions`).then(r => r.json()).then(setSessions).catch(() => {});
+  }, []);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -49,7 +87,16 @@ export default function App() {
   useEffect(() => {
     fetch(`${API_BASE}/api/model-info`).then(r => r.json()).then(setModelInfo).catch(() => {});
     fetch(`${API_BASE}/api/documents`).then(r => r.json()).then(setDocuments).catch(() => {});
+    fetch(`${API_BASE}/api/sections`).then(r => r.json()).then(setSections).catch(() => {});
+    refreshSessions();
+  }, [refreshSessions]);
+
+  const toggleSection = useCallback((s: string) => {
+    setSelectedSections(prev =>
+      prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
+    );
   }, []);
+  const clearSections = useCallback(() => setSelectedSections([]), []);
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -79,7 +126,12 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text.trim(), language_mode: languageMode }),
+        body: JSON.stringify({
+          query: text.trim(),
+          language_mode: languageMode,
+          secoes: selectedSections,
+          session_id: sessionId,
+        }),
       });
 
       if (!res.ok || !res.body) {
@@ -137,7 +189,36 @@ export default function App() {
       setIsLoading(false);
       inputRef.current?.focus();
     }
-  }, [isLoading, languageMode]);
+    refreshSessions();
+  }, [isLoading, languageMode, selectedSections, sessionId, refreshSessions]);
+
+  const startNewConversation = useCallback(() => {
+    const newId = uuid();
+    localStorage.setItem(SESSION_STORAGE_KEY, newId);
+    setSessionId(newId);
+    setMessages([]);
+    refreshSessions();
+  }, [refreshSessions]);
+
+  const loadSession = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(id)}`);
+      const rows: PersistedMessage[] = await res.json();
+      const restored: Message[] = rows.map((m, i) => ({
+        id: `${id}-${i}`,
+        role: m.role,
+        content: m.content,
+        structured: m.structured ?? undefined,
+        sources: m.sources ?? undefined,
+        timestamp: new Date(),
+      }));
+      localStorage.setItem(SESSION_STORAGE_KEY, id);
+      setSessionId(id);
+      setMessages(restored);
+    } catch {
+      /* silent */
+    }
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,7 +277,7 @@ export default function App() {
 
       {/* Sidebar */}
       <Sidebar
-        onClearChat={() => setMessages([])}
+        onClearChat={startNewConversation}
         onUploadFile={handleUpload}
         isUploading={isUploading}
         isOpen={sidebarOpen}
@@ -204,6 +285,13 @@ export default function App() {
         onSuggestionClick={(text) => sendMessage(text)}
         modelInfo={modelInfo}
         documents={documents}
+        sections={sections}
+        selectedSections={selectedSections}
+        onToggleSection={toggleSection}
+        onClearSections={clearSections}
+        sessions={sessions}
+        currentSessionId={sessionId}
+        onSelectSession={loadSession}
       />
 
       {/* Main Content */}

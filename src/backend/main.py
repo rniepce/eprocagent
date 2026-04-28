@@ -14,6 +14,12 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.responses import JSONResponse, StreamingResponse
 
 from src.backend.models import ChatRequest, ChatResponse, FeedbackRequest, UploadResponse
+from src.backend.sessions import (
+    fetch_history,
+    fetch_session_messages,
+    list_sessions,
+    save_message,
+)
 from src.backend.search import SearchService, get_active_llm_info, _llm_generate, _generate_embeddings_batch
 from src.ingestion.extraction import extract_text_from_pdf, extract_text_from_doc_docx
 from src.ingestion.chunking import chunk_text
@@ -197,8 +203,15 @@ async def chat_stream(request: Request, body: ChatRequest):
             return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
         try:
-            yield sse("status", {"state": "searching"})
+            history = await fetch_history(body.session_id, limit=6) if body.session_id else []
 
+            if body.session_id:
+                await save_message(
+                    body.session_id, "user", body.query,
+                    title=body.query[:120] if not history else None,
+                )
+
+            yield sse("status", {"state": "searching"})
             results = await search_service.search(body)
 
             yield sse(
@@ -211,6 +224,8 @@ async def chat_stream(request: Request, body: ChatRequest):
                     "Não encontrei informações relevantes nos manuais do eProc para sua pergunta. "
                     "Tente reformular usando termos mais específicos."
                 )
+                if body.session_id:
+                    await save_message(body.session_id, "assistant", empty_md)
                 yield sse("answer", {"answer": empty_md, "structured": None})
                 yield sse("done", {})
                 return
@@ -218,8 +233,21 @@ async def chat_stream(request: Request, body: ChatRequest):
             yield sse("status", {"state": "thinking"})
 
             answer_md, structured = await search_service.generate_answer(
-                body.query, results, language_mode=body.language_mode
+                body.query,
+                results,
+                language_mode=body.language_mode,
+                history=history,
             )
+
+            if body.session_id:
+                await save_message(
+                    body.session_id,
+                    "assistant",
+                    answer_md,
+                    sources=[r.model_dump() for r in results],
+                    structured=structured.model_dump() if structured else None,
+                )
+
             payload = {
                 "answer": answer_md,
                 "structured": structured.model_dump() if structured else None,
@@ -228,7 +256,7 @@ async def chat_stream(request: Request, body: ChatRequest):
             yield sse("done", {})
             logger.info(
                 f"chat_stream_success | ip={client_ip} | sources={len(results)} "
-                f"| structured={'yes' if structured else 'no'}"
+                f"| structured={'yes' if structured else 'no'} | history={len(history)}"
             )
         except Exception as e:
             logger.error(f"chat_stream_error | ip={client_ip} | error={e}", exc_info=True)
@@ -415,6 +443,53 @@ Responda APENAS com JSON válido:"""
             status_code=500,
             detail="Erro interno ao processar o arquivo. Tente novamente.",
         )
+
+
+@app.get("/api/sessions")
+async def get_sessions(limit: int = 50):
+    """List past chat sessions ordered by recency."""
+    return await list_sessions(limit=min(max(limit, 1), 200))
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str):
+    """Return the full message history of a session."""
+    return await fetch_session_messages(session_id)
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str, _auth=Depends(verify_api_key)):
+    """Delete a session and all its messages."""
+    from src.utils.db import get_db_connection, release_db_connection
+
+    conn = await get_db_connection()
+    try:
+        await conn.execute(
+            "DELETE FROM conversations WHERE session_id = $1",
+            session_id,
+        )
+        return {"status": "ok"}
+    finally:
+        await release_db_connection(conn)
+
+
+@app.get("/api/sections")
+async def list_sections():
+    """Return all distinct `secao` values with document counts."""
+    from src.utils.db import get_db_connection, release_db_connection
+
+    conn = await get_db_connection()
+    try:
+        rows = await conn.fetch(
+            """SELECT secao, COUNT(*) as count
+               FROM documentos
+               WHERE secao IS NOT NULL AND secao <> ''
+               GROUP BY secao
+               ORDER BY secao ASC"""
+        )
+        return [{"secao": r["secao"], "count": r["count"]} for r in rows]
+    finally:
+        await release_db_connection(conn)
 
 
 @app.get("/api/documents")

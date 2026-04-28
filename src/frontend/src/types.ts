@@ -88,6 +88,18 @@ export interface ChatMessageProps {
   message: Message;
 }
 
+export interface SectionInfo {
+  secao: string;
+  count: number;
+}
+
+export interface SessionSummaryItem {
+  session_id: string;
+  title: string;
+  msg_count: number;
+  last_at?: string | null;
+}
+
 export interface SidebarProps {
   onClearChat: () => void;
   onUploadFile: (file: File) => Promise<void>;
@@ -97,4 +109,11 @@ export interface SidebarProps {
   onSuggestionClick: (text: string) => void;
   modelInfo: ModelInfo | null;
   documents: DocumentInfo[];
+  sections: SectionInfo[];
+  selectedSections: string[];
+  onToggleSection: (secao: string) => void;
+  onClearSections: () => void;
+  sessions: SessionSummaryItem[];
+  currentSessionId: string;
+  onSelectSession: (id: string) => void;
 }
