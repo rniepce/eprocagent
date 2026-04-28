@@ -11,9 +11,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 
-from src.backend.models import ChatRequest, ChatResponse, UploadResponse
+from src.backend.models import ChatRequest, ChatResponse, FeedbackRequest, UploadResponse
 from src.backend.search import SearchService, get_active_llm_info, _llm_generate, _generate_embeddings_batch
 from src.ingestion.extraction import extract_text_from_pdf, extract_text_from_doc_docx
 from src.ingestion.chunking import chunk_text
@@ -175,6 +175,103 @@ async def chat_endpoint(request: Request, body: ChatRequest):
     except Exception as e:
         logger.error(f"chat_error | ip={client_ip} | query={body.query[:80]} | error={e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno na busca. Tente novamente.")
+
+
+@app.post("/api/chat/stream")
+@limiter.limit(RATE_LIMIT)
+async def chat_stream(request: Request, body: ChatRequest):
+    """Streaming chat endpoint — emits SSE events as the pipeline progresses.
+
+    Events:
+      - status   {state: 'searching'|'thinking'}
+      - sources  {sources: [...]}      # right after search, ~2s
+      - answer   {answer, structured}  # after LLM finishes
+      - done     {}
+      - error    {detail}
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    logger.info(f"chat_stream_start | ip={client_ip} | query={body.query[:80]}")
+
+    async def event_gen():
+        def sse(event: str, payload: dict) -> str:
+            return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+        try:
+            yield sse("status", {"state": "searching"})
+
+            results = await search_service.search(body)
+
+            yield sse(
+                "sources",
+                {"sources": [r.model_dump() for r in results]},
+            )
+
+            if not results:
+                empty_md = (
+                    "Não encontrei informações relevantes nos manuais do eProc para sua pergunta. "
+                    "Tente reformular usando termos mais específicos."
+                )
+                yield sse("answer", {"answer": empty_md, "structured": None})
+                yield sse("done", {})
+                return
+
+            yield sse("status", {"state": "thinking"})
+
+            answer_md, structured = await search_service.generate_answer(
+                body.query, results, language_mode=body.language_mode
+            )
+            payload = {
+                "answer": answer_md,
+                "structured": structured.model_dump() if structured else None,
+            }
+            yield sse("answer", payload)
+            yield sse("done", {})
+            logger.info(
+                f"chat_stream_success | ip={client_ip} | sources={len(results)} "
+                f"| structured={'yes' if structured else 'no'}"
+            )
+        except Exception as e:
+            logger.error(f"chat_stream_error | ip={client_ip} | error={e}", exc_info=True)
+            yield sse("error", {"detail": "Erro interno na busca."})
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/feedback")
+@limiter.limit("60/minute")
+async def submit_feedback(request: Request, body: FeedbackRequest):
+    """Persist user 👍/👎 feedback on an assistant answer."""
+    from src.utils.db import get_db_connection, release_db_connection
+
+    if body.vote not in (-1, 1):
+        raise HTTPException(status_code=400, detail="Voto inválido (use -1 ou 1).")
+
+    conn = await get_db_connection()
+    try:
+        await conn.execute(
+            """INSERT INTO feedback
+                 (session_id, query, answer, structured, sources_doc_ids,
+                  vote, comment, language_mode)
+               VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)""",
+            body.session_id,
+            body.query,
+            body.answer,
+            json.dumps(body.structured) if body.structured else None,
+            body.sources_doc_ids or [],
+            body.vote,
+            body.comment,
+            body.language_mode,
+        )
+        return {"status": "ok"}
+    finally:
+        await release_db_connection(conn)
 
 
 @app.post("/api/upload", response_model=UploadResponse)

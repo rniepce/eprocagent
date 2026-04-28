@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu, Sparkles, Briefcase } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import Sidebar from './Sidebar';
-import type { Message, ChatResponse, ModelInfo, DocumentInfo } from './types';
+import type { Message, ModelInfo, DocumentInfo } from './types';
 import './index.css';
 
 type LanguageMode = 'simple' | 'technical';
@@ -57,38 +57,82 @@ export default function App() {
     const userMsg: Message = {
       id: generateId(), role: 'user', content: text.trim(), timestamp: new Date(),
     };
-    setMessages(prev => [...prev, userMsg]);
+    const assistantId = generateId();
+    const assistantMsg: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      status: 'searching',
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMsg, assistantMsg]);
     setInput('');
     setIsLoading(true);
 
+    const updateAssistant = (patch: Partial<Message>) => {
+      setMessages(prev =>
+        prev.map(m => (m.id === assistantId ? { ...m, ...patch } : m))
+      );
+    };
+
     try {
-      const res = await fetch(`${API_BASE}/api/chat`, {
+      const res = await fetch(`${API_BASE}/api/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query: text.trim(), language_mode: languageMode }),
       });
 
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         throw new Error(`HTTP ${res.status}`);
       }
 
-      const data: ChatResponse = await res.json();
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-      const assistantMsg: Message = {
-        id: generateId(), role: 'assistant',
-        content: data.answer,
-        structured: data.structured,
-        sources: data.sources,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, assistantMsg]);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) >= 0) {
+          const block = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+
+          let eventName = 'message';
+          let dataLine = '';
+          for (const line of block.split('\n')) {
+            if (line.startsWith('event: ')) eventName = line.slice(7).trim();
+            else if (line.startsWith('data: ')) dataLine += line.slice(6);
+          }
+          if (!dataLine) continue;
+          let payload: any;
+          try { payload = JSON.parse(dataLine); } catch { continue; }
+
+          if (eventName === 'status') {
+            updateAssistant({ status: payload.state });
+          } else if (eventName === 'sources') {
+            updateAssistant({ sources: payload.sources });
+          } else if (eventName === 'answer') {
+            updateAssistant({
+              content: payload.answer,
+              structured: payload.structured ?? undefined,
+              status: undefined,
+            });
+          } else if (eventName === 'error') {
+            updateAssistant({
+              content: `⚠️ ${payload.detail ?? 'Erro interno.'}`,
+              status: 'error',
+            });
+          }
+        }
+      }
     } catch (err) {
-      const errorMsg: Message = {
-        id: generateId(), role: 'assistant',
-        content: '⚠️ Erro ao conectar com o servidor. Verifique se o backend está rodando em `localhost:8080`.',
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMsg]);
+      updateAssistant({
+        content: '⚠️ Erro de conexão com o servidor.',
+        status: 'error',
+      });
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
@@ -187,7 +231,17 @@ export default function App() {
           ) : (
             <div className="chat-container">
               {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} onFollowup={sendMessage} />
+                <ChatMessage
+                  key={msg.id}
+                  message={msg}
+                  onFollowup={sendMessage}
+                  userQuery={
+                    msg.role === 'assistant'
+                      ? messages[messages.indexOf(msg) - 1]?.content
+                      : undefined
+                  }
+                  languageMode={languageMode}
+                />
               ))}
 
               {isLoading && (

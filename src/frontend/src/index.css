@@ -418,3 +418,67 @@ html, body, #root {
 }
 .lang-pill svg { flex-shrink: 0; }
 
+/* ── Streaming status pill ──────────────────────── */
+.chat-status {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  padding: 0.55rem 0.95rem; border-radius: var(--radius-full);
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: 0.88rem;
+}
+.chat-status svg { color: var(--accent-blue-light); flex-shrink: 0; }
+.chat-status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent-blue);
+  animation: chat-status-pulse 1.4s ease-in-out infinite;
+}
+@keyframes chat-status-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.15); }
+}
+
+/* ── Feedback bar ──────────────────────────────── */
+.feedback-bar {
+  display: flex; flex-wrap: wrap; align-items: center;
+  gap: 0.5rem; margin-top: 0.85rem; padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+.feedback-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text-secondary); cursor: pointer; transition: var(--transition);
+}
+.feedback-btn:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.feedback-btn:disabled { opacity: 0.5; cursor: default; }
+.feedback-btn.active.up { background: rgba(34,197,94,0.18); border-color: #22c55e; color: #22c55e; }
+.feedback-btn.active.down { background: rgba(239,68,68,0.18); border-color: #ef4444; color: #ef4444; }
+.feedback-thanks { font-size: 0.78rem; color: var(--text-secondary); }
+
+.feedback-comment {
+  display: flex; flex-direction: column; gap: 0.45rem;
+  width: 100%; margin-top: 0.4rem;
+}
+.feedback-textarea {
+  width: 100%; padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary); border: 1px solid var(--border);
+  color: var(--text-primary); font-size: 0.85rem; font-family: inherit;
+  resize: vertical;
+}
+.feedback-textarea:focus { outline: none; border-color: var(--accent-blue); }
+.feedback-comment-actions { display: flex; gap: 0.4rem; justify-content: flex-end; }
+.feedback-skip, .feedback-send {
+  padding: 0.35rem 0.85rem; border-radius: var(--radius-sm);
+  font-size: 0.8rem; font-family: inherit; cursor: pointer;
+  transition: var(--transition); border: 1px solid var(--border);
+}
+.feedback-skip { background: transparent; color: var(--text-secondary); }
+.feedback-skip:hover { color: var(--text-primary); }
+.feedback-send {
+  background: var(--accent-gradient); color: white; border-color: transparent;
+}
+.feedback-send:hover { opacity: 0.92; }
+

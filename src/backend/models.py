@@ -99,3 +99,15 @@ class HealthResponse(BaseModel):
     status: str
     db_connected: bool = False
     llm_provider: Optional[str] = None
+
+
+class FeedbackRequest(BaseModel):
+    """User feedback on an assistant answer."""
+    query: str = Field(..., max_length=2000)
+    answer: Optional[str] = Field(None, max_length=20000)
+    structured: Optional[dict] = None
+    sources_doc_ids: list[int] = []
+    vote: int = Field(..., ge=-1, le=1)
+    comment: Optional[str] = Field(None, max_length=2000)
+    language_mode: Optional[str] = None
+    session_id: Optional[str] = None

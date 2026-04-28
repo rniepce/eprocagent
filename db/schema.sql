@@ -54,3 +54,20 @@ CREATE TABLE IF NOT EXISTS conversations (
 
 CREATE INDEX IF NOT EXISTS idx_conversations_session
     ON conversations (session_id, created_at);
+
+-- ── Feedback table (👍/👎 por resposta) ─────────────────────────
+CREATE TABLE IF NOT EXISTS feedback (
+    id SERIAL PRIMARY KEY,
+    session_id TEXT,
+    query TEXT NOT NULL,
+    answer TEXT,
+    structured JSONB,
+    sources_doc_ids INTEGER[],
+    vote SMALLINT NOT NULL CHECK (vote IN (-1, 1)),
+    comment TEXT,
+    language_mode TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_vote
+    ON feedback (vote, created_at DESC);

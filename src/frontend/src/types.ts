@@ -47,12 +47,15 @@ export interface DisambiguationStructured {
 
 export type ChatStructured = AnswerStructured | DisambiguationStructured;
 
+export type StreamingStatus = 'searching' | 'thinking' | 'error';
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   structured?: ChatStructured;
   sources?: Source[];
+  status?: StreamingStatus;
   timestamp: Date;
 }
 
