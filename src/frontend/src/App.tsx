@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu } from 'lucide-react';
+import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu, Sparkles, Briefcase } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import Sidebar from './Sidebar';
 import type { Message, ChatResponse, ModelInfo, DocumentInfo } from './types';
 import './index.css';
+
+type LanguageMode = 'simple' | 'technical';
+const LANG_STORAGE_KEY = 'eproc.language_mode';
 
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8080' : '';
 
@@ -26,8 +29,16 @@ export default function App() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [languageMode, setLanguageMode] = useState<LanguageMode>(() => {
+    const saved = localStorage.getItem(LANG_STORAGE_KEY);
+    return saved === 'technical' ? 'technical' : 'simple';
+  });
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(LANG_STORAGE_KEY, languageMode);
+  }, [languageMode]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -54,7 +65,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: text.trim() }),
+        body: JSON.stringify({ query: text.trim(), language_mode: languageMode }),
       });
 
       if (!res.ok) {
@@ -82,7 +93,7 @@ export default function App() {
       setIsLoading(false);
       inputRef.current?.focus();
     }
-  }, [isLoading]);
+  }, [isLoading, languageMode]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,6 +213,28 @@ export default function App() {
         {/* Input */}
         <div className="chat-input-container">
           <div className="chat-input-wrapper">
+            <div className="lang-toggle" role="radiogroup" aria-label="Tom da resposta">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={languageMode === 'simple'}
+                className={`lang-pill ${languageMode === 'simple' ? 'active' : ''}`}
+                onClick={() => setLanguageMode('simple')}
+                title="Linguagem clara, sem juridiquês"
+              >
+                <Sparkles size={13} /> Simples
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={languageMode === 'technical'}
+                className={`lang-pill ${languageMode === 'technical' ? 'active' : ''}`}
+                onClick={() => setLanguageMode('technical')}
+                title="Tom formal, terminologia jurídica"
+              >
+                <Briefcase size={13} /> Técnico
+              </button>
+            </div>
             <form onSubmit={handleSubmit}>
               <input
                 ref={inputRef}

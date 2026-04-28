@@ -156,7 +156,9 @@ async def chat_endpoint(request: Request, body: ChatRequest):
             )
 
         # 2. Generate Answer
-        answer_md, structured = await search_service.generate_answer(body.query, results)
+        answer_md, structured = await search_service.generate_answer(
+            body.query, results, language_mode=body.language_mode
+        )
 
         logger.info(
             f"chat_success | ip={client_ip} | sources={len(results)} "

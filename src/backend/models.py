@@ -11,6 +11,11 @@ class ChatRequest(BaseModel):
     use_hybrid_search: bool = Field(True, description="Enable hybrid vector + keyword search")
     use_reranking: bool = Field(True, description="Enable LLM-based result reranking")
     top_k: int = Field(5, ge=1, le=20, description="Number of results to return")
+    language_mode: str = Field(
+        "simple",
+        pattern="^(simple|technical)$",
+        description="Tom da resposta: 'simple' (acessível) ou 'technical' (formal/jurídico)",
+    )
 
 
 class SourceItem(BaseModel):

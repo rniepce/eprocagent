@@ -396,3 +396,25 @@ html, body, #root {
   .sa-disamb-grid { grid-template-columns: 1fr; }
 }
 
+/* ── Language toggle ────────────────────────────── */
+.lang-toggle {
+  display: inline-flex; gap: 0.25rem;
+  margin-bottom: 0.5rem; padding: 0.2rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  width: fit-content;
+}
+.lang-pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  padding: 0.35rem 0.85rem; border-radius: var(--radius-full);
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-secondary); font-size: 0.78rem; font-weight: 500;
+  font-family: inherit; transition: var(--transition);
+}
+.lang-pill:hover { color: var(--text-primary); }
+.lang-pill.active {
+  background: var(--accent-gradient); color: white;
+  box-shadow: var(--shadow-sm);
+}
+.lang-pill svg { flex-shrink: 0; }
+

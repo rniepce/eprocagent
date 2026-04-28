@@ -99,8 +99,14 @@ QUANDO USAR ANSWER:
 
 REGRAS GERAIS:
 - Use APENAS informações dos documentos/manuais fornecidos. Não invente.
-- Português brasileiro, claro, acessível, sem floreio.
+- Português brasileiro, claro, sem floreio.
 - NÃO inclua texto fora do JSON. NÃO use cercas. Apenas o objeto JSON cru.
+
+CITAÇÃO INLINE DE FONTES:
+- Quando uma instrução, definição ou aviso vier claramente de um manual específico, cite-o **dentro da própria frase**, em negrito, sem prefixo "Fonte:". Ex: "Conforme o **Manual da Sociedade de Advogados**, o token A3 é obrigatório para..."
+- Cite no MÁXIMO uma fonte por seção (tldr/passo/atenção). Não polua com citações repetidas.
+- Use o `titulo` ou nome curto do manual, não o filename inteiro.
+- Em `conceitos`, NÃO precisa citar — a definição já fica clara.
 
 REGRAS PARA MODE=ANSWER:
 - `tldr`: sempre presente. Resposta acionável em 1-2 frases.
@@ -111,10 +117,25 @@ REGRAS PARA MODE=ANSWER:
 - Se a informação não está nos documentos: tldr="Não encontrei nos manuais do eProc.", listas vazias, followups com sugestões de reformulação.
 
 EXEMPLO answer ("Como criar uma sala de audiência?"):
-{"mode":"answer","tldr":"Acesse **Menu → Gerenciamento de Salas → Nova** e preencha o formulário. Apenas perfis de **Gerente de Secretaria** podem criar salas.","conceitos":[{"termo":"Sala de Audiência","definicao":"Cadastro necessário no eProc para permitir agendamento de audiências."}],"passos":[{"titulo":"Acessar o menu","descricao":"No **Menu**, busque por **Gerenciamento de Salas**."},{"titulo":"Criar nova sala","descricao":"Na tela **Sala de Audiência**, clique em **Nova**."},{"titulo":"Preencher cadastro","descricao":"Preencha a tela **Cadastrar nova sala de audiência do Órgão**."}],"atencao":["⚠️ Apenas **Gerente de Secretaria** pode criar salas."],"followups":["Como agendar audiência depois?","Como configurar Agenda Padrão da sala?"]}
+{"mode":"answer","tldr":"Conforme o **Manual de Audiência I**, acesse **Menu → Gerenciamento de Salas → Nova** e preencha o formulário. Apenas perfis de **Gerente de Secretaria** podem criar salas.","conceitos":[{"termo":"Sala de Audiência","definicao":"Cadastro necessário no eProc para permitir agendamento de audiências."}],"passos":[{"titulo":"Acessar o menu","descricao":"No **Menu**, busque por **Gerenciamento de Salas**."},{"titulo":"Criar nova sala","descricao":"Na tela **Sala de Audiência**, clique em **Nova**."},{"titulo":"Preencher cadastro","descricao":"Preencha a tela **Cadastrar nova sala de audiência do Órgão**."}],"atencao":["⚠️ Apenas **Gerente de Secretaria** pode criar salas (Manual de Audiência I)."],"followups":["Como agendar audiência depois?","Como configurar Agenda Padrão da sala?"]}
 
 EXEMPLO disambiguation ("Como configurar o eproc?"):
 {"mode":"disambiguation","pergunta":"O que você quer configurar no eProc?","opcoes":[{"label":"Notificações","icon":"🔔","query":"Como configurar preferências de intimação no eProc?","hint":"Email, prazos e canal de aviso"},{"label":"Localizadores","icon":"📍","query":"Como configurar meus localizadores?","hint":"Etiquetas para organizar processos"},{"label":"Minutas","icon":"📝","query":"Como configurar preferências de minutas?","hint":"Modelo padrão, formatação"},{"label":"Aparência","icon":"🎨","query":"Como ajustar a aparência e acessibilidade do eProc?","hint":"Tema, contraste, fonte"}]}"""
+
+
+LANGUAGE_DIRECTIVE_SIMPLE = """
+
+REGISTRO: linguagem clara e acessível, em tom de quem ensina um colega.
+- Evite juridiquês. Quando for inevitável usar um termo técnico (ex: "intimação", "preclusão", "ICP-Brasil"), inclua uma explicação curta entre parênteses na primeira menção.
+- Pode usar pequenas analogias do dia-a-dia para ilustrar conceitos abstratos.
+- Frases curtas. Voz ativa."""
+
+LANGUAGE_DIRECTIVE_TECHNICAL = """
+
+REGISTRO: linguagem técnica, formal, apropriada para profissionais do direito.
+- Pode usar terminologia processual sem explicar (preclusão, sucumbência, litisconsórcio, exceção de pré-executividade etc.).
+- Cite artigos do CPC, leis e provimentos quando aparecerem nos manuais.
+- Mantém a precisão técnica acima da didática."""
 
 
 def _llm_generate(prompt: str, system_prompt: str = None) -> str:
@@ -349,7 +370,10 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
             await release_db_connection(conn)
 
     async def generate_answer(
-        self, query: str, context: List[SourceItem]
+        self,
+        query: str,
+        context: List[SourceItem],
+        language_mode: str = "simple",
     ) -> tuple[str, Optional[ChatStructured]]:
         """Generate structured answer (JSON) and a markdown rendering for fallback.
 
@@ -384,8 +408,15 @@ PERGUNTA DO USUÁRIO:
 
 Gere a resposta no formato JSON definido pelo system prompt. Apenas o objeto JSON, sem texto extra."""
 
+        directive = (
+            LANGUAGE_DIRECTIVE_TECHNICAL
+            if language_mode == "technical"
+            else LANGUAGE_DIRECTIVE_SIMPLE
+        )
+        system_prompt = SYSTEM_PROMPT_STRUCTURED + directive
+
         try:
-            raw = _llm_generate(prompt, system_prompt=SYSTEM_PROMPT_STRUCTURED)
+            raw = _llm_generate(prompt, system_prompt=system_prompt)
             structured = _parse_structured(raw)
             if structured is None:
                 logger.warning("structured parse failed, returning markdown fallback")
