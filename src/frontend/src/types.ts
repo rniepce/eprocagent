@@ -13,16 +13,37 @@ export interface Source {
   pagina?: number;
 }
 
+export interface Conceito {
+  termo: string;
+  definicao: string;
+}
+
+export interface Passo {
+  titulo: string;
+  descricao: string;
+}
+
+export interface AnswerStructured {
+  mode: 'answer';
+  tldr: string;
+  conceitos: Conceito[];
+  passos: Passo[];
+  atencao: string[];
+  followups: string[];
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  structured?: AnswerStructured;
   sources?: Source[];
   timestamp: Date;
 }
 
 export interface ChatResponse {
   answer: string;
+  structured?: AnswerStructured;
   sources: Source[];
   session_id?: string;
 }

@@ -1,12 +1,15 @@
 """RAG Search Engine — Query rewriting, hybrid search, LLM reranking, answer generation."""
 
+import json
 import logging
 import os
-from typing import List
+from typing import List, Optional
 
 from openai import AzureOpenAI
+from pydantic import ValidationError
+
 from src.utils.db import get_db_connection, release_db_connection
-from src.backend.models import ChatRequest, SourceItem
+from src.backend.models import AnswerStructured, ChatRequest, SourceItem
 
 logger = logging.getLogger(__name__)
 
@@ -54,20 +57,53 @@ def get_active_llm_info() -> dict:
 
 # ── System Prompt ────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """Você é o eProc Agent, um assistente inteligente especializado no sistema judicial eletrônico eProc.
+SYSTEM_PROMPT_STRUCTURED = """Você é o eProc Agent, um assistente especializado no sistema judicial eletrônico eProc.
 
-Sua função é ajudar usuários (advogados, servidores, magistrados e partes) a utilizarem o sistema eProc de forma eficiente.
+Você responde EXCLUSIVAMENTE em JSON válido, seguindo este schema:
 
-INSTRUÇÕES:
-1. Responda SEMPRE com base nos documentos/manuais fornecidos no contexto
-2. Forneça instruções PASSO-A-PASSO quando o usuário perguntar "como fazer" algo
-3. Use formatação Markdown para melhor legibilidade (negritos, listas numeradas, títulos)
-4. Cite a seção/página do manual quando possível
-5. Se a informação não estiver nos documentos fornecidos, diga claramente e sugira termos de busca alternativos
-6. Responda em português brasileiro, de forma clara e acessível
-7. Priorize instruções práticas sobre explicações teóricas
-8. Para procedimentos, use listas numeradas com cada passo claramente descrito
-9. Quando relevante, mencione avisos ou cuidados importantes com ⚠️"""
+{
+  "mode": "answer",
+  "tldr": "Resposta direta em 1-2 frases (obrigatório)",
+  "conceitos": [{"termo": "...", "definicao": "..."}],
+  "passos": [{"titulo": "Nome curto do passo", "descricao": "Detalhe completo, incluindo nomes de menus/botões em **negrito**"}],
+  "atencao": ["Aviso 1", "Aviso 2"],
+  "followups": ["Pergunta de aprofundamento 1", "Pergunta 2"]
+}
+
+REGRAS:
+- Use APENAS informações dos documentos/manuais fornecidos no contexto. Não invente.
+- `tldr`: sempre presente. Resposta acionável em 1-2 frases.
+- `conceitos`: inclua se a pergunta envolver termos do eProc que merecem definição (ex: "Localizador", "Sigilo nível 5", "Minuta"). Caso contrário, lista vazia.
+- `passos`: APENAS quando a pergunta é "como fazer" / procedimental. Caso contrário, lista vazia. Use os nomes literais de menus, botões e telas do eProc (com **negrito** em markdown dentro de cada `descricao`).
+- `atencao`: pré-requisitos, perfis necessários (ex: "Gerente de Secretaria"), armadilhas, observações críticas dos manuais. Use ⚠️ se quiser destacar.
+- `followups`: 2-3 perguntas curtas que aprofundam tópicos QUE APARECEM nos chunks recuperados, não inventadas. Devem ser perguntas que o usuário POSSA ter, não que ele acabou de fazer.
+- Se a informação não está nos documentos, devolva tldr="Não encontrei nos manuais do eProc.", conceitos/passos/atencao vazios e followups com sugestões de reformulação.
+- Português brasileiro, claro, acessível, sem floreio.
+- NÃO inclua texto fora do JSON. NÃO use cercas ```json. Apenas o objeto JSON cru.
+
+EXEMPLO de resposta para "Como criar uma sala de audiência?":
+{
+  "mode": "answer",
+  "tldr": "Acesse **Menu → Gerenciamento de Salas → Nova** e preencha o formulário da sala. Apenas usuários com perfil **Gerente de Secretaria** podem criar salas.",
+  "conceitos": [
+    {"termo": "Sala de Audiência", "definicao": "Recurso configurado no eProc onde audiências são agendadas e realizadas. Pode ser exclusiva de um órgão ou compartilhada entre secretarias."}
+  ],
+  "passos": [
+    {"titulo": "Acessar Gerenciamento de Salas", "descricao": "No **Menu**, busque por **Gerenciamento de Salas**."},
+    {"titulo": "Iniciar nova sala", "descricao": "Na tela **Sala de Audiência**, clique em **Nova**."},
+    {"titulo": "Preencher formulário", "descricao": "Preencha os campos da tela **Cadastrar nova sala de audiência do Órgão** conforme o caso."},
+    {"titulo": "Definir compartilhamento", "descricao": "No campo **A sala de Audiência já existe e é utilizada por mais de uma secretaria/unidade?**, escolha **Sim** se for compartilhada ou **Não** se for exclusiva."}
+  ],
+  "atencao": [
+    "⚠️ Apenas usuários com perfil de **Gerente de Secretaria** podem criar salas.",
+    "Sem salas criadas, não é possível agendar audiências."
+  ],
+  "followups": [
+    "Como configurar a Agenda Padrão da sala?",
+    "Como agendar uma audiência depois que a sala existe?",
+    "Como compartilhar uma sala entre várias secretarias?"
+  ]
+}"""
 
 
 def _llm_generate(prompt: str, system_prompt: str = None) -> str:
@@ -301,10 +337,23 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
         finally:
             await release_db_connection(conn)
 
-    async def generate_answer(self, query: str, context: List[SourceItem]) -> str:
-        """Generate answer using Azure OpenAI (GPT-5.5) with RAG context."""
+    async def generate_answer(
+        self, query: str, context: List[SourceItem]
+    ) -> tuple[str, Optional[AnswerStructured]]:
+        """Generate structured answer (JSON) and a markdown rendering for fallback.
+
+        Returns (markdown, structured). `structured` is None if JSON parsing fails;
+        in that case `markdown` carries a usable response.
+        """
         if not context:
-            return "Não encontrei informações relevantes nos manuais do eProc para sua pergunta. Tente reformular usando termos mais específicos."
+            empty = AnswerStructured(
+                tldr="Não encontrei informações relevantes nos manuais do eProc para essa pergunta.",
+                followups=[
+                    "Pode reformular a pergunta usando termos do eProc?",
+                    "Quer ver a lista de tópicos cobertos pelos manuais?",
+                ],
+            )
+            return _structured_to_markdown(empty), empty
 
         context_text = ""
         for i, item in enumerate(context, 1):
@@ -313,36 +362,27 @@ ORDEM DE RELEVÂNCIA (números separados por vírgula):"""
                 location += f" | Página {item.pagina}"
             if item.secao:
                 location += f" | Seção: {item.secao}"
-
             context_text += f"\n--- Documento {i}: {item.filename}{location} ---\n"
             context_text += f"{item.chunk_text}\n"
 
-        try:
-            prompt = f"""Com base EXCLUSIVAMENTE nos documentos/manuais do eProc abaixo, responda à pergunta do usuário.
-
-DOCUMENTOS ENCONTRADOS:
+        prompt = f"""DOCUMENTOS RECUPERADOS DOS MANUAIS DO EPROC:
 {context_text}
 
 PERGUNTA DO USUÁRIO:
 <user_query>{query}</user_query>
 
-INSTRUÇÕES PARA A RESPOSTA:
-1. Se a pergunta é sobre "como fazer" algo, forneça um PASSO-A-PASSO numerado e detalhado
-2. Cite o documento fonte quando possível (ex: "Conforme o Manual do Usuário, página X...")
-3. Use formatação Markdown: **negritos** para termos importantes, listas numeradas para procedimentos
-4. Se encontrar avisos ou cuidados, destaque com ⚠️
-5. Se a pergunta não puder ser respondida com os documentos, diga claramente
-6. Responda em português brasileiro, de forma clara e acessível
-7. Priorize informações práticas e acionáveis
+Gere a resposta no formato JSON definido pelo system prompt. Apenas o objeto JSON, sem texto extra."""
 
-RESPOSTA:"""
-
-            answer = _llm_generate(prompt, system_prompt=SYSTEM_PROMPT)
-            return answer
-
+        try:
+            raw = _llm_generate(prompt, system_prompt=SYSTEM_PROMPT_STRUCTURED)
+            structured = _parse_structured(raw)
+            if structured is None:
+                logger.warning("structured parse failed, returning markdown fallback")
+                return raw, None
+            return _structured_to_markdown(structured), structured
         except Exception as e:
             logger.error(f"LLM generation error: {e}", exc_info=True)
-            return self._fallback_answer(query, context)
+            return self._fallback_answer(query, context), None
 
     def _fallback_answer(self, query: str, context: List[SourceItem]) -> str:
         """Fallback when LLM is unavailable — show raw chunks."""
@@ -356,3 +396,48 @@ RESPOSTA:"""
             answer += f"_{item.chunk_text[:400]}..._\n\n"
 
         return answer
+
+
+# ── Structured response helpers ────────────────────────────────────
+
+def _parse_structured(raw: str) -> Optional[AnswerStructured]:
+    """Parse LLM output into AnswerStructured. Tolerant to ```json fences."""
+    if not raw:
+        return None
+    text = raw.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text.lower().startswith("json"):
+            text = text[4:]
+        text = text.strip()
+    try:
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            return None
+        data.setdefault("mode", "answer")
+        return AnswerStructured.model_validate(data)
+    except (json.JSONDecodeError, ValidationError) as e:
+        logger.warning(f"structured parse error: {e}")
+        return None
+
+
+def _structured_to_markdown(s: AnswerStructured) -> str:
+    """Render AnswerStructured as markdown for the legacy `answer` field."""
+    out = [s.tldr.strip()]
+    if s.conceitos:
+        out.append("\n### Conceitos-chave")
+        for c in s.conceitos:
+            out.append(f"- **{c.termo}** — {c.definicao}")
+    if s.passos:
+        out.append("\n### Passo a passo")
+        for i, p in enumerate(s.passos, 1):
+            out.append(f"{i}. **{p.titulo}** — {p.descricao}")
+    if s.atencao:
+        out.append("\n### ⚠️ Atenção")
+        for a in s.atencao:
+            out.append(f"- {a}")
+    if s.followups:
+        out.append("\n### Quer ir mais fundo?")
+        for f in s.followups:
+            out.append(f"- {f}")
+    return "\n".join(out)

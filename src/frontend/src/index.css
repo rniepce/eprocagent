@@ -285,3 +285,80 @@ html, body, #root {
   .welcome-title { font-size: 1.4rem; }
   .chat-input-container { padding: 0.75rem; }
 }
+
+/* ── Structured answer ──────────────────────────── */
+.structured-answer { display: flex; flex-direction: column; gap: 1.1rem; }
+
+.sa-tldr {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 0.95rem 1.1rem; border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(59,130,246,0.12), rgba(139,92,246,0.10));
+  border: 1px solid rgba(99,140,255,0.25);
+  font-size: 1.02rem; line-height: 1.55; color: var(--text-primary);
+}
+.sa-tldr-icon { color: var(--accent-blue-light); flex-shrink: 0; margin-top: 4px; }
+.sa-tldr p { margin: 0; }
+
+.sa-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.sa-section-title {
+  display: flex; align-items: center; gap: 0.45rem;
+  margin: 0; font-size: 0.78rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+
+.sa-conceitos { display: flex; flex-direction: column; gap: 0.4rem; }
+.sa-conceito {
+  padding: 0.6rem 0.85rem; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.sa-conceito-termo { display: block; color: var(--accent-blue-light); margin-bottom: 0.2rem; font-size: 0.92rem; }
+.sa-conceito-def { font-size: 0.92rem; color: var(--text-primary); line-height: 1.5; }
+.sa-conceito-def p { margin: 0; }
+
+.sa-passos { list-style: none; padding: 0; margin: 0; counter-reset: passo; display: flex; flex-direction: column; gap: 0.5rem; }
+.sa-passo {
+  position: relative; counter-increment: passo;
+  padding: 0.65rem 0.9rem 0.65rem 2.6rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--border);
+}
+.sa-passo::before {
+  content: counter(passo);
+  position: absolute; left: 0.75rem; top: 0.65rem;
+  width: 1.6rem; height: 1.6rem; border-radius: var(--radius-full);
+  background: var(--accent-gradient); color: white;
+  font-size: 0.78rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.sa-passo-titulo { font-size: 0.95rem; color: var(--text-primary); margin-bottom: 0.15rem; }
+.sa-passo-desc { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.5; }
+.sa-passo-desc p { margin: 0; }
+
+.sa-atencao-box {
+  background: rgba(252,211,77,0.06);
+  border: 1px solid rgba(252,211,77,0.25);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem 1rem;
+}
+.sa-atencao-title { color: #fbbf24 !important; }
+.sa-atencao-list { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.sa-atencao-list li { font-size: 0.92rem; line-height: 1.5; color: var(--text-primary); }
+.sa-atencao-list li p { display: inline; margin: 0; }
+
+.sa-followups { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.sa-followup-chip {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.55rem 0.9rem; border-radius: var(--radius-full);
+  background: var(--surface); border: 1px solid var(--border-strong);
+  color: var(--text-primary); font-size: 0.88rem; font-family: inherit;
+  cursor: pointer; transition: var(--transition);
+  text-align: left;
+}
+.sa-followup-chip:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-blue);
+  transform: translateY(-1px);
+}
+.sa-followup-chip svg { color: var(--accent-blue-light); flex-shrink: 0; }
+

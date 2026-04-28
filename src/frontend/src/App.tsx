@@ -65,7 +65,10 @@ export default function App() {
 
       const assistantMsg: Message = {
         id: generateId(), role: 'assistant',
-        content: data.answer, sources: data.sources, timestamp: new Date(),
+        content: data.answer,
+        structured: data.structured,
+        sources: data.sources,
+        timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMsg]);
     } catch (err) {
@@ -173,7 +176,7 @@ export default function App() {
           ) : (
             <div className="chat-container">
               {messages.map((msg) => (
-                <ChatMessage key={msg.id} message={msg} />
+                <ChatMessage key={msg.id} message={msg} onFollowup={sendMessage} />
               ))}
 
               {isLoading && (

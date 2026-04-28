@@ -25,9 +25,30 @@ class SourceItem(BaseModel):
     pagina: Optional[int] = None
 
 
+class Conceito(BaseModel):
+    termo: str
+    definicao: str
+
+
+class Passo(BaseModel):
+    titulo: str
+    descricao: str
+
+
+class AnswerStructured(BaseModel):
+    """Structured payload for a regular answer (Fase 1)."""
+    mode: str = "answer"
+    tldr: str = Field(..., description="Resposta direta em 1-2 frases")
+    conceitos: list[Conceito] = []
+    passos: list[Passo] = []
+    atencao: list[str] = []
+    followups: list[str] = Field(default_factory=list, description="2-3 perguntas para aprofundar")
+
+
 class ChatResponse(BaseModel):
     """Response body for the chat endpoint."""
     answer: str
+    structured: Optional[AnswerStructured] = None
     sources: list[SourceItem] = []
     session_id: Optional[str] = None
 

@@ -3,8 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ChevronDown, ChevronRight, FileText, User, Scale } from 'lucide-react';
 import type { ChatMessageProps } from './types';
+import { StructuredAnswer } from './StructuredAnswer';
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+type Props = ChatMessageProps & { onFollowup?: (q: string) => void };
+
+const ChatMessage: React.FC<Props> = ({ message, onFollowup }) => {
   const isUser = message.role === 'user';
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
 
@@ -24,6 +27,11 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
       <div className="chat-content">
         {isUser ? (
           <p>{message.content}</p>
+        ) : message.structured ? (
+          <StructuredAnswer
+            data={message.structured}
+            onFollowup={(q) => onFollowup?.(q)}
+          />
         ) : (
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {message.content}
