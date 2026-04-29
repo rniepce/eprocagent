@@ -1,5 +1,5 @@
 import React, { useRef, type ChangeEvent } from 'react';
-import { Plus, Upload, Database, Filter, X, MessageCircle, Trash2, FileText, Settings, Search, Clock, Paperclip, LogOut, Sparkles, Briefcase } from 'lucide-react';
+import { Plus, Upload, Database, Filter, X, Trash2, FileText, Settings, Search, Clock, Paperclip, LogOut, Sparkles, Briefcase } from 'lucide-react';
 import type { SidebarProps } from './types';
 import { EprocLogo } from './EprocLogo';
 
@@ -145,8 +145,37 @@ const Sidebar: React.FC<SidebarProps> = ({
         </>
       )}
 
+      {/* Upload */}
+      <div className="sidebar-section">
+        <button
+          className="btn-upload"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+        >
+          {isUploading ? (
+            <><div className="spinner" /> Processando...</>
+          ) : (
+            <><Upload size={16} /> Enviar Manual (PDF/DOCX)</>
+          )}
+        </button>
+        <input
+          ref={fileInputRef} type="file" accept=".pdf,.doc,.docx"
+          style={{ display: 'none' }} onChange={handleFileSelect}
+        />
+      </div>
+
       {/* Footer */}
       <div className="sidebar-footer">
+        {modelInfo && modelInfo.provider !== 'none' && (
+          <div className="sidebar-model-info">
+            <span className="sidebar-model-dot" />
+            {modelInfo.label}
+          </div>
+        )}
+        <div className="sidebar-doc-count">
+          <Database size={12} />
+          {documents.length} documento{documents.length !== 1 ? 's' : ''} indexado{documents.length !== 1 ? 's' : ''}
+        </div>
         <div className="lang-toggle" role="radiogroup" aria-label="Tom da resposta">
           <button
             type="button"

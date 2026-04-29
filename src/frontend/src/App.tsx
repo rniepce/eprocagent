@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu, Sparkles, Briefcase, FileText, Search } from 'lucide-react';
+import { Send, Scale, BookOpen, HelpCircle, Menu, FileText, Search } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import Sidebar from './Sidebar';
 import type { Message, ModelInfo, DocumentInfo, SectionInfo, LanguageMode } from './types';
