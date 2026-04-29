@@ -100,6 +100,8 @@ export interface SessionSummaryItem {
   last_at?: string | null;
 }
 
+export type LanguageMode = 'simple' | 'technical';
+
 export interface SidebarProps {
   onClearChat: () => void;
   onUploadFile: (file: File) => Promise<void>;
@@ -117,4 +119,6 @@ export interface SidebarProps {
   currentSessionId: string;
   onSelectSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
+  languageMode: LanguageMode;
+  setLanguageMode: (mode: LanguageMode) => void;
 }

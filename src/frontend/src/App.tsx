@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu, Sparkles, Briefcase } from 'lucide-react';
+import { Send, Scale, MessageSquare, FileSearch, BookOpen, HelpCircle, Menu, Sparkles, Briefcase, FileText, Search } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import Sidebar from './Sidebar';
-import type { Message, ModelInfo, DocumentInfo, SectionInfo } from './types';
+import type { Message, ModelInfo, DocumentInfo, SectionInfo, LanguageMode } from './types';
 import './index.css';
 
-type LanguageMode = 'simple' | 'technical';
 const LANG_STORAGE_KEY = 'eproc.language_mode';
 const SESSION_STORAGE_KEY = 'eproc.session_id';
 
@@ -38,10 +37,10 @@ function generateId() {
 }
 
 const WELCOME_SUGGESTIONS = [
-  { icon: <MessageSquare size={20} />, text: 'Como peticionar no eProc?' },
-  { icon: <FileSearch size={20} />, text: 'Como consultar um processo pelo número?' },
-  { icon: <BookOpen size={20} />, text: 'Como configurar o certificado digital para acessar o eProc?' },
-  { icon: <HelpCircle size={20} />, text: 'Quais os prazos para recurso no eProc?' },
+  { icon: <FileText size={24} />, text: 'Como peticionar no eProc?' },
+  { icon: <Search size={24} />, text: 'Como consultar um processo pelo número?' },
+  { icon: <BookOpen size={24} />, text: 'Como configurar o certificado digital para acessar o eProc?' },
+  { icon: <HelpCircle size={24} />, text: 'Quais os prazos para recurso no eProc?' },
 ];
 
 export default function App() {
@@ -310,6 +309,8 @@ export default function App() {
         currentSessionId={sessionId}
         onSelectSession={loadSession}
         onDeleteSession={deleteSession}
+        languageMode={languageMode}
+        setLanguageMode={setLanguageMode}
       />
 
       {/* Main Content */}
@@ -317,12 +318,17 @@ export default function App() {
         <div className="chat-area">
           {showWelcome ? (
             <div className="welcome-screen">
-              <div className="welcome-icon">
-                <Scale size={28} color="white" />
+              <div className="welcome-watermark">
+                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                  <circle cx="100" cy="100" r="90" fill="currentColor" opacity="0.3"/>
+                  <circle cx="130" cy="60" r="40" fill="currentColor" opacity="0.5"/>
+                  <circle cx="70" cy="140" r="30" fill="currentColor" opacity="0.4"/>
+                  <text x="100" y="115" fontSize="48" fontWeight="bold" textAnchor="middle" fill="white" style={{ opacity: 1, textShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>eproc</text>
+                </svg>
               </div>
               <h1 className="welcome-title">eProc Agent</h1>
               <p className="welcome-subtitle">
-                Seu assistente inteligente para o sistema judicial eProc.
+                Seu assistente inteligente para o sistema judicial eProc.<br/>
                 Faça perguntas sobre procedimentos, funcionalidades e dúvidas do sistema.
               </p>
               <div className="welcome-suggestions">
@@ -373,28 +379,6 @@ export default function App() {
         {/* Input */}
         <div className="chat-input-container">
           <div className="chat-input-wrapper">
-            <div className="lang-toggle" role="radiogroup" aria-label="Tom da resposta">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={languageMode === 'simple'}
-                className={`lang-pill ${languageMode === 'simple' ? 'active' : ''}`}
-                onClick={() => setLanguageMode('simple')}
-                title="Linguagem clara, sem juridiquês"
-              >
-                <Sparkles size={13} /> Simples
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={languageMode === 'technical'}
-                className={`lang-pill ${languageMode === 'technical' ? 'active' : ''}`}
-                onClick={() => setLanguageMode('technical')}
-                title="Tom formal, terminologia jurídica"
-              >
-                <Briefcase size={13} /> Técnico
-              </button>
-            </div>
             <form onSubmit={handleSubmit}>
               <input
                 ref={inputRef}
